@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Venda {
+  id              String      @id @default(uuid())
+  clienteId       String
+  valorTotal      Decimal     @db.Decimal(10, 2)
+  status          String      @default("PENDENTE")
+  metodoPagamento String?
+  motivo          String?
+  criadoEm        DateTime    @default(now())
+  itens       ItemVenda[]
+}
+
+model ItemVenda {
+  id            String @id @default(uuid())
+  produtoId     String
+  quantidade    Int
+  precoUnitario Decimal @db.Decimal(10, 2)
+  venda         Venda  @relation(fields: [vendaId], references: [id])
+  vendaId       String
+}
