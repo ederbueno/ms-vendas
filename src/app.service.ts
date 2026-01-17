@@ -3,12 +3,33 @@ import {
   NotFoundException,
   InternalServerErrorException,
   BadRequestException,
+  OnModuleInit,
+  Inject,
 } from '@nestjs/common';
+import { ClientKafka } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
-export class AppService {
-  constructor(private prisma: PrismaService) {}
+export class AppService implements OnModuleInit {
+  constructor(
+    private prisma: PrismaService,
+    @Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka,
+  ) {}
+
+  async onModuleInit() {
+    await this.kafkaClient.connect();
+  }
+
+  private async emitEvento(topico: string, payload: any) {
+    try {
+      await firstValueFrom(this.kafkaClient.emit(topico, payload));
+      console.log(`📨 Evento Kafka emitido: ${topico}`);
+    } catch (error: unknown) {
+      const mensagem = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error(`❌ Falha ao emitir evento Kafka (${topico}): ${mensagem}`);
+    }
+  }
 
   async criarVenda(dadosDaVenda: any) {
     const vendaIdFake = `VENDA-${Math.floor(Math.random() * 10000)}`;
@@ -23,7 +44,7 @@ export class AppService {
         data: {
           id: vendaIdFake,
           clienteId: dadosDaVenda.clienteId,
-          status: 'PENDENTE',
+          status: dadosDaVenda.status || 'PENDENTE',
           valorTotal: valorTotalCalculado,
           metodoPagamento: dadosDaVenda.metodoPagamento,
           itens: {
@@ -38,6 +59,14 @@ export class AppService {
       });
 
       console.log(`✅ Venda ${vendaIdFake} salva no banco.`);
+
+      await this.emitEvento('venda_criada', {
+        vendaId: vendaIdFake,
+        clienteId: dadosDaVenda.clienteId,
+        cep: dadosDaVenda.cep,
+        itens: dadosDaVenda.itens,
+        valorTotal: valorTotalCalculado,
+      });
 
       return { 
         status: 'Sucesso', 
@@ -158,6 +187,15 @@ export class AppService {
     });
 
     console.log(`🔄 Venda ${vendaId}: Status -> ${status} | Motivo: ${motivo || 'N/A'}`);
+
+    if (['CANCELADO', 'ESTORNADO', 'FALHOU'].includes(status)) {
+      await this.emitEvento('venda_cancelada', {
+        vendaId,
+        itens: venda.itens,
+        motivo: motivo || null,
+      });
+    }
+
     return vendaAtualizada;
   }
 }

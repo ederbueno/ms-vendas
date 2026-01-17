@@ -1,4 +1,5 @@
 import { Body, Controller, Post, Get, Param, Patch, Delete } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AppService } from './app.service';
 
 @Controller('vendas')
@@ -31,5 +32,17 @@ export class AppController {
   @Delete(':id')
   async deletar(@Param('id') id: string) {
     return await this.appService.deletarVenda(id);
+  }
+
+  @MessagePattern('estoque_reservado')
+  async estoqueReservado(@Payload() message: any) {
+    const data = message?.value ?? message;
+    return await this.appService.atualizarStatus(data.vendaId, 'CONCLUIDO');
+  }
+
+  @MessagePattern('estoque_falhou')
+  async estoqueFalhou(@Payload() message: any) {
+    const data = message?.value ?? message;
+    return await this.appService.atualizarStatus(data.vendaId, 'CANCELADO', data.motivo);
   }
 }
