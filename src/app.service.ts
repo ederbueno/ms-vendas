@@ -87,10 +87,28 @@ export class AppService implements OnModuleInit {
   }
 
   async listarVendas() {
-    return await this.prisma.venda.findMany({
-      include: { itens: true },
-      orderBy: { criadoEm: 'desc' }
-    });
+    try {
+      console.log('📋 Iniciando listagem de vendas...');
+      
+      const vendas = await this.prisma.venda.findMany({
+        include: { itens: true },
+        orderBy: { criadoEm: 'desc' }
+      });
+      
+      console.log(`✅ ${vendas.length} venda(s) recuperada(s) com sucesso`);
+      return vendas;
+      
+    } catch (error: unknown) {
+      const mensagem = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error(`❌ Erro ao listar vendas: ${mensagem}`);
+      console.error(`Erro completo:`, error);
+      
+      throw new InternalServerErrorException({
+        message: 'Não foi possível carregar as vendas. Verifique se o banco de dados está acessível.',
+        detail: mensagem,
+        error: 'DATABASE_ERROR'
+      });
+    }
   }
 
   async buscarPorId(id: string) {
