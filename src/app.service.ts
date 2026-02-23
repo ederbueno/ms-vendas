@@ -86,17 +86,59 @@ export class AppService implements OnModuleInit {
     }
   }
 
-  async listarVendas() {
+  async listarVendas(page: number = 1, limit: number = 20, status?: string, search?: string) {
     try {
-      console.log('📋 Iniciando listagem de vendas...');
+      const skip = (page - 1) * limit;
       
-      const vendas = await this.prisma.venda.findMany({
-        include: { itens: true },
-        orderBy: { criadoEm: 'desc' }
-      });
+      console.log(`📋 Listando vendas - Página ${page}, ${limit} itens`);
+      if (status) console.log(`   Filtro status: ${status}`);
+      if (search) console.log(`   Busca: ${search}`);
       
-      console.log(`✅ ${vendas.length} venda(s) recuperada(s) com sucesso`);
-      return vendas;
+      // Construir where condicional
+      const where: any = {};
+      
+      if (status && status !== 'Todos') {
+        where.status = status;
+      }
+      
+      if (search) {
+        where.OR = [
+          { id: { contains: search, mode: 'insensitive' } },
+          { clienteId: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+      
+      // Buscar vendas com paginação
+      const [vendas, total] = await Promise.all([
+        this.prisma.venda.findMany({
+          where,
+          include: { 
+            itens: {
+              select: {
+                produtoId: true,
+                quantidade: true,
+                precoUnitario: true,
+              }
+            }
+          },
+          orderBy: { criadoEm: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.venda.count({ where }),
+      ]);
+      
+      console.log(`✅ ${vendas.length} venda(s) recuperada(s) - Total no banco: ${total}`);
+      
+      return {
+        data: vendas,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        }
+      };
       
     } catch (error: unknown) {
       const mensagem = error instanceof Error ? error.message : 'Erro desconhecido';

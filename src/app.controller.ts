@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Param, Patch, Delete } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, Patch, Delete, Query } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AppService } from './app.service';
 
@@ -12,8 +12,15 @@ export class AppController {
   }
 
   @Get()
-  async listarTodas() {
-    return await this.appService.listarVendas();
+  async listarTodas(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return await this.appService.listarVendas(pageNum, limitNum, status, search);
   }
 
   @Get(':id')
